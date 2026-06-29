@@ -1,6 +1,6 @@
 paths:
   knowledge_store: "${CASE_BASE_DIR}/Family/Health/Longevity"
-  skill_output: "${CASE_BASE_DIR}/Family/Health/.claude/skills/health-longevity"
+  skill_output: "${CASE_BASE_DIR}/Family/Health/Longevity/.claude/skills/health-longevity"
 
 extraction:
   model: "claude-haiku-4-5-20251001"
