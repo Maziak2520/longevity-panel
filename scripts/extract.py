@@ -2,6 +2,7 @@
 """Extract: extract claims from new transcripts."""
 from __future__ import annotations
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +13,12 @@ from dotenv import load_dotenv
 from filelock import FileLock
 
 load_dotenv()
+
+if not os.environ.get("ANTHROPIC_API_KEY"):
+    raise SystemExit(
+        "ANTHROPIC_API_KEY is not set. Add it to your .env file or environment. "
+        "Get a key at https://console.anthropic.com/"
+    )
 
 from pipeline.config import load_config
 from pipeline.paths import resolve_path, AppPaths, startup_check
@@ -88,9 +95,10 @@ def main(limit: int | None) -> None:
         with FileLock(str(lock_file)):
             existing = load_claims(claims_file)
             combined = dedup_claims(existing + all_new_claims)
-            claims_file.write_text("")
-            for claim in combined:
-                append_claim(claims_file, claim)
+            content = "".join(c.model_dump_json() + "\n" for c in combined)
+            tmp = claims_file.with_suffix(".jsonl.tmp")
+            tmp.write_text(content)
+            tmp.rename(claims_file)
 
         state.mark_extracted(source_id)
         success += 1
