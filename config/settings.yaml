@@ -1,0 +1,26 @@
+paths:
+  knowledge_store: "${CASE_BASE_DIR}/Family/Health/Longevity"
+  skill_output: "${CASE_BASE_DIR}/Family/Health/.claude/skills/health-longevity"
+
+extraction:
+  model: "claude-haiku-4-5-20251001"
+  build_model: "claude-sonnet-4-6"
+  chunk_size_tokens: 3000
+  chunk_overlap_tokens: 200
+  max_retries: 3
+  dead_letter_after: 3
+
+transcription:
+  provider: "groq"
+  model: "whisper-large-v3"
+  use_for_youtube: false
+  use_for_podcast_audio: true
+
+build:
+  map_reduce_threshold: 50
+  min_experts_to_publish: 2
+  min_claims_to_publish: 3
+
+api:
+  monthly_spend_limit_usd: 20
+  extract_limit: null

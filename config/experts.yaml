@@ -1,0 +1,136 @@
+experts:
+  - id: brian-johnson
+    name: Brian Johnson
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@bryanjohnson"
+          filter_topics: true
+      podcast: []
+
+  - id: rhonda-patrick
+    name: Rhonda Patrick
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@FoundMyFitness"
+          filter_topics: true
+      podcast:
+        - url: "https://feeds.simplecast.com/nlXAJCEL"
+          transcript_strategy: "website_scrape"
+          transcript_url_pattern: "https://www.foundmyfitness.com/episodes/{slug}"
+
+  - id: peter-attia
+    name: Peter Attia
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@PeterAttiaMD"
+          filter_topics: true
+      podcast:
+        - url: "https://peterattiamd.com/podcast/feed/"
+          transcript_strategy: "website_scrape"
+          transcript_url_pattern: "https://peterattiamd.com/{slug}/"
+
+  - id: andrew-huberman
+    name: Andrew Huberman
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@hubermanlab"
+          filter_topics: true
+      podcast:
+        - url: "https://feeds.megaphone.fm/hubermanlab"
+          transcript_strategy: "website_scrape"
+          transcript_url_pattern: "https://www.hubermanlab.com/episode/{slug}"
+
+  - id: david-sinclair
+    name: David Sinclair
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@davidsinclairpodcast"
+          filter_topics: true
+      podcast: []
+
+  - id: paul-mason
+    name: Paul Mason
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@DrPaulMason"
+          filter_topics: true
+      podcast: []
+
+  - id: robert-lustig
+    name: Robert Lustig
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@RobertLustigMD"
+          filter_topics: true
+      podcast: []
+
+  - id: matthew-walker
+    name: Matthew Walker
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@sleepdiplomacy"
+          filter_topics: true
+      podcast:
+        - url: "https://feeds.buzzsprout.com/1934381.rss"
+          transcript_strategy: "website_scrape"
+          transcript_url_pattern: "https://www.mattwalkerphd.com/podcast/{slug}/"
+
+  - id: james-nestor
+    name: James Nestor
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@JamesNestorBreath"
+          filter_topics: false
+      podcast: []
+
+  - id: paul-stamets
+    name: Paul Stamets
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@PaulStamets"
+          filter_topics: false
+      podcast: []
+
+  - id: mindy-pelz
+    name: Mindy Pelz
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@drmindypelz"
+          filter_topics: true
+      podcast:
+        - url: "https://feeds.buzzsprout.com/1429547.rss"
+          transcript_strategy: "skip"
+
+  - id: dave-asprey
+    name: Dave Asprey
+    active: true
+    since: "2020-01-01"
+    sources:
+      youtube:
+        - url: "https://www.youtube.com/@Dave.Asprey"
+          filter_topics: true
+      podcast:
+        - url: "https://feeds.libsyn.com/9174/rss"
+          transcript_strategy: "skip"
