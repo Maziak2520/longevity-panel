@@ -54,7 +54,7 @@ experts:
     since: "2020-01-01"
     sources:
       youtube:
-        - url: "https://www.youtube.com/@davidsinclairpodcast"
+        - url: "https://www.youtube.com/davidsinclairpodcast"
           filter_topics: true
       podcast: []
 
@@ -84,7 +84,7 @@ experts:
     since: "2020-01-01"
     sources:
       youtube:
-        - url: "https://www.youtube.com/@sleepdiplomacy"
+        - url: "https://www.youtube.com/@sleepdiplomat"
           filter_topics: true
       podcast:
         - url: "https://feeds.buzzsprout.com/1934381.rss"
@@ -93,12 +93,10 @@ experts:
 
   - id: james-nestor
     name: James Nestor
-    active: true
+    active: false
     since: "2020-01-01"
     sources:
-      youtube:
-        - url: "https://www.youtube.com/@JamesNestorBreath"
-          filter_topics: false
+      youtube: []
       podcast: []
 
   - id: paul-stamets
@@ -107,7 +105,7 @@ experts:
     since: "2020-01-01"
     sources:
       youtube:
-        - url: "https://www.youtube.com/@PaulStamets"
+        - url: "https://www.youtube.com/paulstamets"
           filter_topics: false
       podcast: []
 
@@ -129,7 +127,7 @@ experts:
     since: "2020-01-01"
     sources:
       youtube:
-        - url: "https://www.youtube.com/@Dave.Asprey"
+        - url: "https://www.youtube.com/c/DaveAspreyBPR"
           filter_topics: true
       podcast:
         - url: "https://feeds.libsyn.com/9174/rss"

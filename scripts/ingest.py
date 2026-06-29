@@ -31,10 +31,14 @@ def main(limit: int | None) -> None:
     )
     startup_check(paths)
     state = StateManager(paths.index_dir)
-    items = state.pop_pending()
+    all_pending = state.pop_pending()
 
     if limit:
-        items = items[:limit]
+        items = all_pending[:limit]
+        for item in all_pending[limit:]:
+            state.add_pending(item)
+    else:
+        items = all_pending
 
     success = 0
     for item in items:
