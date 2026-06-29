@@ -2,7 +2,10 @@
 """Ingest: download transcripts for all pending items."""
 from __future__ import annotations
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import click
 from dotenv import load_dotenv

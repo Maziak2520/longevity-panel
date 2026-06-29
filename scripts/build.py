@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Build: compile skill from all claims."""
 from __future__ import annotations
+import sys
 from datetime import date
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import click
 from dotenv import load_dotenv
