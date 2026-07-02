@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-from pipeline.build.compiler import group_claims_by_topic, meets_build_threshold
+from unittest.mock import patch, MagicMock, call
+from pipeline.build.compiler import group_claims_by_topic, meets_build_threshold, compile_topic_markdown, _chunk
 from pipeline.models import Claim
 
 
@@ -62,3 +62,43 @@ def test_meets_build_threshold_fails_insufficient_experts():
 def test_meets_build_threshold_fails_insufficient_claims():
     claims = [make_claim(f"expert-{i}", "sleep") for i in range(2)]
     assert not meets_build_threshold(claims, min_experts=2, min_claims=3)
+
+
+def test_chunk_splits_evenly():
+    assert _chunk([1, 2, 3, 4], 2) == [[1, 2], [3, 4]]
+
+
+def test_chunk_handles_remainder():
+    assert _chunk([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
+
+
+def test_chunk_smaller_than_size():
+    assert _chunk([1, 2], 10) == [[1, 2]]
+
+
+def test_compile_topic_map_chunks_large_expert(tmp_path):
+    """When one expert has more claims than map_chunk_size, map is called multiple times for that expert."""
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text="summary text")]
+
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = mock_response
+
+    # 3 claims for expert-a, chunk size 2 → 2 map calls for expert-a, 1 for expert-b, 1 reduce = 4 total
+    claims = [make_claim("expert-a", f"sub{i}", topic="nutrition") for i in range(3)]
+    claims += [make_claim("expert-b", "sub0", topic="nutrition")]
+
+    with patch("pipeline.build.compiler.anthropic.Anthropic", return_value=mock_client):
+        result = compile_topic_markdown(
+            topic="nutrition",
+            claims=claims,
+            model="test-model",
+            today="2026-07-02",
+            map_reduce_threshold=2,
+            map_chunk_size=2,
+        )
+
+    total_calls = mock_client.messages.create.call_count
+    # 2 map chunks for expert-a + 1 for expert-b + 1 reduce = 4
+    assert total_calls == 4
+    assert result == "summary text"

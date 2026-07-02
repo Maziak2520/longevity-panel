@@ -41,6 +41,7 @@ transcription:
   use_for_podcast_audio: true
 build:
   map_reduce_threshold: 50
+  map_chunk_size: 100
   min_experts_to_publish: 2
   min_claims_to_publish: 3
 api:
@@ -93,6 +94,7 @@ transcription:
   use_for_podcast_audio: true
 build:
   map_reduce_threshold: 50
+  map_chunk_size: 100
   min_experts_to_publish: 2
   min_claims_to_publish: 3
 api:
@@ -135,6 +137,7 @@ transcription:
   use_for_podcast_audio: true
 build:
   map_reduce_threshold: 50
+  map_chunk_size: 100
   min_experts_to_publish: 2
   min_claims_to_publish: 3
 api:

@@ -52,6 +52,7 @@ class TranscriptionConfig(BaseModel):
 
 class BuildConfig(BaseModel):
     map_reduce_threshold: int
+    map_chunk_size: int
     min_experts_to_publish: int
     min_claims_to_publish: int
 
