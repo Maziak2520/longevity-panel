@@ -17,12 +17,14 @@ from pipeline.paths import resolve_path, AppPaths, startup_check
 from pipeline.models import load_claims
 from pipeline.build.compiler import group_claims_by_topic, meets_build_threshold, compile_topic_markdown
 from pipeline.build.skill_writer import write_skill_md, TopicSummary
+from pipeline.build.git_publisher import git_publish
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 
 
 @click.command()
-def main() -> None:
+@click.option("--no-push", is_flag=True, default=False, help="Skip git commit and push after build")
+def main(no_push: bool) -> None:
     config = load_config(CONFIG_DIR)
     paths = AppPaths(
         knowledge_store=resolve_path(config.paths.knowledge_store),
@@ -68,6 +70,15 @@ def main() -> None:
     panel_names = [e.name for e in config.active_experts]
     write_skill_md(paths.skill_output, topic_summaries, panel_names)
     click.echo(f"\nBuild complete. {len(topic_summaries)} topic file(s) written to {paths.skill_output}")
+
+    if no_push:
+        click.echo("Git publish skipped (--no-push)")
+    else:
+        try:
+            status = git_publish(paths.skill_output, today)
+            click.echo(f"Git: {status}")
+        except RuntimeError as exc:
+            click.echo(f"Git publish failed: {exc}", err=True)
 
 
 if __name__ == "__main__":
