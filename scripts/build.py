@@ -24,7 +24,8 @@ CONFIG_DIR = Path(__file__).parent.parent / "config"
 
 @click.command()
 @click.option("--no-push", is_flag=True, default=False, help="Skip git commit and push after build")
-def main(no_push: bool) -> None:
+@click.option("--topic", "only_topic", default=None, help="Rebuild a single topic only (e.g. nutrition)")
+def main(no_push: bool, only_topic: str | None) -> None:
     config = load_config(CONFIG_DIR)
     paths = AppPaths(
         knowledge_store=resolve_path(config.paths.knowledge_store),
@@ -39,6 +40,11 @@ def main(no_push: bool) -> None:
         all_claims.extend(load_claims(claims_file))
 
     grouped = group_claims_by_topic(all_claims)
+    if only_topic:
+        grouped = {k: v for k, v in grouped.items() if k == only_topic}
+        if not grouped:
+            all_topics = ", ".join(group_claims_by_topic(all_claims))
+            raise click.ClickException(f"Topic '{only_topic}' not found in claims (available: {all_topics})")
     topic_summaries = []
 
     for topic, claims in grouped.items():
