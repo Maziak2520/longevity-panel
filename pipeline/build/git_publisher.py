@@ -16,8 +16,10 @@ def git_publish(skill_output: Path, today: str) -> str:
 
     repo_root = Path(result.stdout.strip())
 
+    # Stage everything (skill files + regenerated corpus: Transcripts/Claims/Index).
+    # .gitignore keeps rclone .conflictN artifacts and runtime files out.
     subprocess.run(
-        ["git", "add", ".claude/", "CLAUDE.md"],
+        ["git", "add", "-A"],
         cwd=repo_root,
         check=True,
         capture_output=True,
