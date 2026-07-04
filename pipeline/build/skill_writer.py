@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 
@@ -10,6 +11,37 @@ class TopicSummary:
     claim_count: int
     expert_count: int
     last_updated: str
+
+
+def collect_topic_summaries(
+    references_dir: Path,
+    grouped_claims: dict,
+    rebuilt: dict[str, TopicSummary] | None = None,
+) -> list[TopicSummary]:
+    """Build the topic-map rows from ALL reference files on disk.
+
+    A partial/single-topic build only produces summaries for the topics it
+    rebuilt; using those alone would drop every other topic from the map even
+    though its reference file is still present and valid. So we scan the
+    references directory and, for topics not rebuilt this run, recompute stats
+    from the full claim set and take the file's mtime as last_updated.
+    """
+    rebuilt = rebuilt or {}
+    summaries: list[TopicSummary] = []
+    for ref_file in sorted(references_dir.glob("*.md")):
+        topic = ref_file.stem.replace("-", "_")
+        if topic in rebuilt:
+            summaries.append(rebuilt[topic])
+            continue
+        claims = grouped_claims.get(topic, [])
+        summaries.append(TopicSummary(
+            topic=topic,
+            filename=ref_file.name,
+            claim_count=len(claims),
+            expert_count=len({c.person for c in claims}),
+            last_updated=date.fromtimestamp(ref_file.stat().st_mtime).isoformat(),
+        ))
+    return summaries
 
 
 def write_skill_md(skill_dir: Path, topics: list[TopicSummary], panel_members: list[str]) -> None:

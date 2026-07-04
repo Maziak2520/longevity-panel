@@ -16,7 +16,7 @@ from pipeline.config import load_config
 from pipeline.paths import resolve_path, AppPaths, startup_check
 from pipeline.models import load_claims
 from pipeline.build.compiler import group_claims_by_topic, meets_build_threshold, compile_topic_markdown
-from pipeline.build.skill_writer import write_skill_md, TopicSummary
+from pipeline.build.skill_writer import write_skill_md, collect_topic_summaries, TopicSummary
 from pipeline.build.git_publisher import git_publish
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
@@ -39,11 +39,12 @@ def main(no_push: bool, only_topic: str | None) -> None:
         claims_file = paths.claims_file(expert.id)
         all_claims.extend(load_claims(claims_file))
 
-    grouped = group_claims_by_topic(all_claims)
+    grouped_all = group_claims_by_topic(all_claims)
+    grouped = grouped_all
     if only_topic:
-        grouped = {k: v for k, v in grouped.items() if k == only_topic}
+        grouped = {k: v for k, v in grouped_all.items() if k == only_topic}
         if not grouped:
-            all_topics = ", ".join(group_claims_by_topic(all_claims))
+            all_topics = ", ".join(grouped_all)
             raise click.ClickException(f"Topic '{only_topic}' not found in claims (available: {all_topics})")
     topic_summaries = []
 
@@ -74,9 +75,16 @@ def main(no_push: bool, only_topic: str | None) -> None:
         except Exception as exc:
             click.echo(f"  FAIL {topic}: {exc}")
 
+    # Build the topic map from ALL reference files on disk (not just the topics
+    # rebuilt this run) so a partial/single-topic build never drops other topics.
+    rebuilt = {ts.topic: ts for ts in topic_summaries}
+    map_summaries = collect_topic_summaries(paths.skill_references_dir, grouped_all, rebuilt)
     panel_names = [e.name for e in config.active_experts]
-    write_skill_md(paths.skill_output, topic_summaries, panel_names)
-    click.echo(f"\nBuild complete. {len(topic_summaries)} topic file(s) written to {paths.skill_output}")
+    write_skill_md(paths.skill_output, map_summaries, panel_names)
+    click.echo(
+        f"\nBuild complete. {len(topic_summaries)} topic file(s) recompiled; "
+        f"{len(map_summaries)} topic(s) in map at {paths.skill_output}"
+    )
 
     if no_push:
         click.echo("Git publish skipped (--no-push)")
