@@ -23,8 +23,8 @@ if not os.environ.get("ANTHROPIC_API_KEY"):
 from pipeline.config import load_config
 from pipeline.paths import resolve_path, AppPaths, startup_check
 from pipeline.scout.state import StateManager
-from pipeline.extract.chunker import chunk_text
-from pipeline.extract.extractor import extract_claims_from_chunk
+from pipeline.extract.chunker import chunk_text, words_for_tokens
+from pipeline.extract.extractor import extract_claims_splitting
 from pipeline.extract.dedup import dedup_claims
 from pipeline.models import load_claims, append_claim
 
@@ -72,7 +72,7 @@ def main(limit: int | None) -> None:
         all_new_claims = []
         try:
             for chunk_idx, chunk in enumerate(chunks):
-                claims = extract_claims_from_chunk(
+                claims = extract_claims_splitting(
                     chunk=chunk,
                     chunk_index=chunk_idx,
                     person_id=expert_id,
@@ -83,6 +83,9 @@ def main(limit: int | None) -> None:
                     source_date=source_meta.get("published_date", ""),
                     valid_topics=valid_topics,
                     model=config.extraction.model,
+                    max_output_tokens=config.extraction.max_output_tokens,
+                    overlap_words=words_for_tokens(config.extraction.chunk_overlap_tokens),
+                    min_split_words=config.extraction.min_split_words,
                 )
                 all_new_claims.extend(claims)
         except Exception as exc:
@@ -101,6 +104,7 @@ def main(limit: int | None) -> None:
             tmp.rename(claims_file)
 
         state.mark_extracted(source_id)
+        state.clear_failed(source_id)
         success += 1
         click.echo(f"  OK: {source_id} — {len(all_new_claims)} claim(s)")
 

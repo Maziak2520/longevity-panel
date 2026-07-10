@@ -32,6 +32,8 @@ extraction:
   build_model: "claude-sonnet-4-6"
   chunk_size_tokens: 3000
   chunk_overlap_tokens: 200
+  max_output_tokens: 8192
+  min_split_words: 120
   max_retries: 3
   dead_letter_after: 3
 transcription:
@@ -85,6 +87,8 @@ extraction:
   build_model: "claude-sonnet-4-6"
   chunk_size_tokens: 3000
   chunk_overlap_tokens: 200
+  max_output_tokens: 8192
+  min_split_words: 120
   max_retries: 3
   dead_letter_after: 3
 transcription:
@@ -128,6 +132,8 @@ extraction:
   build_model: "claude-sonnet-4-6"
   chunk_size_tokens: 3000
   chunk_overlap_tokens: 200
+  max_output_tokens: 8192
+  min_split_words: 120
   max_retries: 3
   dead_letter_after: 3
 transcription:

@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-def make_claim_id(person_id: str, source_id: str, chunk_index: int, claim_index: int) -> str:
+def make_claim_id(person_id: str, source_id: str, chunk_index: int | str, claim_index: int) -> str:
     key = f"{person_id}::{source_id}::{chunk_index}::{claim_index}"
     return hashlib.sha256(key.encode()).hexdigest()[:12]
 

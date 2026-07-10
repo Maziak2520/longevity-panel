@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 
 import anthropic
 import instructor
+from instructor.core import IncompleteOutputException
 from pydantic import BaseModel
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
 from pipeline.models import Claim, make_claim_id
 
@@ -46,10 +47,18 @@ def build_instructor_client():
     return instructor.from_anthropic(client)
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=60))
+# Truncated output (IncompleteOutputException) is deterministic — retrying the
+# identical request cannot succeed, so it is excluded from retries and handled
+# by extract_claims_splitting instead.
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=60),
+    retry=retry_if_not_exception_type(IncompleteOutputException),
+    reraise=True,
+)
 def extract_claims_from_chunk(
     chunk: str,
-    chunk_index: int,
+    chunk_index: int | str,
     person_id: str,
     person_name: str,
     source_id: str,
@@ -58,11 +67,12 @@ def extract_claims_from_chunk(
     source_date: str,
     valid_topics: list[str],
     model: str,
+    max_output_tokens: int,
 ) -> list[Claim]:
     client = build_instructor_client()
     response = client.chat.completions.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=max_output_tokens,
         system=EXTRACTION_SYSTEM_PROMPT,
         messages=[
             {
@@ -100,3 +110,61 @@ def extract_claims_from_chunk(
             schema_version="1.0",
         ))
     return claims
+
+
+def extract_claims_splitting(
+    chunk: str,
+    chunk_index: int | str,
+    person_id: str,
+    person_name: str,
+    source_id: str,
+    source_title: str,
+    source_url: str,
+    source_date: str,
+    valid_topics: list[str],
+    model: str,
+    max_output_tokens: int,
+    overlap_words: int,
+    min_split_words: int,
+) -> list[Claim]:
+    """Extract claims, splitting the chunk in half when the model's output is
+    truncated (too many claims to fit max_output_tokens). Sub-chunks get
+    derived indices ("3.0", "3.1") so claim IDs stay unique."""
+    try:
+        return extract_claims_from_chunk(
+            chunk=chunk,
+            chunk_index=chunk_index,
+            person_id=person_id,
+            person_name=person_name,
+            source_id=source_id,
+            source_title=source_title,
+            source_url=source_url,
+            source_date=source_date,
+            valid_topics=valid_topics,
+            model=model,
+            max_output_tokens=max_output_tokens,
+        )
+    except IncompleteOutputException:
+        words = chunk.split()
+        if len(words) < min_split_words:
+            raise
+        mid = len(words) // 2
+        halves = (words[: mid + overlap_words], words[mid:])
+        claims = []
+        for half_index, half_words in enumerate(halves):
+            claims.extend(extract_claims_splitting(
+                chunk=" ".join(half_words),
+                chunk_index=f"{chunk_index}.{half_index}",
+                person_id=person_id,
+                person_name=person_name,
+                source_id=source_id,
+                source_title=source_title,
+                source_url=source_url,
+                source_date=source_date,
+                valid_topics=valid_topics,
+                model=model,
+                max_output_tokens=max_output_tokens,
+                overlap_words=overlap_words,
+                min_split_words=min_split_words,
+            ))
+        return claims
