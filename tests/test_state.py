@@ -41,3 +41,51 @@ def test_state_persists_across_instances(tmp_path):
     sm1.mark_downloaded("yt-abc123", "brian-johnson", "youtube", "https://yt.com/watch?v=abc")
     sm2 = StateManager(idx)
     assert sm2.is_downloaded("yt-abc123")
+
+
+def make_item(source_id: str) -> PendingItem:
+    return PendingItem(
+        source_id=source_id,
+        expert_id="brian-johnson",
+        source_type="youtube",
+        url=f"https://yt.com/watch?v={source_id}",
+        title="Episode",
+        published_date="2023-01-15",
+    )
+
+
+def test_pop_pending_dedupes_duplicate_source_ids(tmp_path):
+    sm = StateManager(tmp_path / "Index")
+    sm.add_pending(make_item("yt-a"))
+    sm.add_pending(make_item("yt-a"))
+    sm.add_pending(make_item("yt-b"))
+    items = sm.pop_pending()
+    assert [i.source_id for i in items] == ["yt-a", "yt-b"]
+
+
+def test_pop_pending_skips_already_downloaded(tmp_path):
+    sm = StateManager(tmp_path / "Index")
+    sm.mark_downloaded("yt-a", "brian-johnson", "youtube", "https://yt.com/watch?v=a")
+    sm.add_pending(make_item("yt-a"))
+    sm.add_pending(make_item("yt-b"))
+    items = sm.pop_pending()
+    assert [i.source_id for i in items] == ["yt-b"]
+
+
+def test_known_source_ids_covers_all_states(tmp_path):
+    sm = StateManager(tmp_path / "Index")
+    sm.mark_downloaded("yt-down", "brian-johnson", "youtube", "https://yt.com/watch?v=d")
+    sm.add_pending(make_item("yt-pend"))
+    sm.add_failed("yt-fail", "ingest_error", "no captions")
+    assert sm.known_source_ids() == {"yt-down", "yt-pend", "yt-fail"}
+
+
+def test_clear_failed_single_and_all(tmp_path):
+    sm = StateManager(tmp_path / "Index")
+    sm.add_failed("yt-a", "ingest_error", "x")
+    sm.add_failed("yt-b", "ingest_error", "y")
+    assert sm.clear_failed("yt-a") == 1
+    assert sm.clear_failed("yt-missing") == 0
+    assert list(sm.load_failed()) == ["yt-b"]
+    assert sm.clear_failed() == 1
+    assert sm.load_failed() == {}
