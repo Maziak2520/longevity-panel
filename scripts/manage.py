@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Manage: add/remove/list panel experts."""
+"""Manage: add/remove/list panel experts, retry failed items."""
 from __future__ import annotations
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import click
 import yaml
@@ -62,6 +65,32 @@ def remove(expert_id: str) -> None:
             click.echo(f"Set {expert_id} to inactive. Run 'python scripts/build.py' to rebuild skill.")
             return
     click.echo(f"Expert '{expert_id}' not found.")
+
+
+@cli.command(name="retry-failed")
+@click.argument("source_id", required=False)
+def retry_failed(source_id: str | None) -> None:
+    """Clear failed entries so the next scout re-queues them.
+
+    With SOURCE_ID clears one entry, without it clears all. Scout skips
+    failed items, so clearing is the only way to get them retried.
+    """
+    from pipeline.config import load_config
+    from pipeline.paths import resolve_path, AppPaths, startup_check
+    from pipeline.scout.state import StateManager
+
+    config = load_config(CONFIG_DIR)
+    paths = AppPaths(
+        knowledge_store=resolve_path(config.paths.knowledge_store),
+        skill_output=resolve_path(config.paths.skill_output),
+    )
+    startup_check(paths)
+    state = StateManager(paths.index_dir)
+    count = state.clear_failed(source_id)
+    if source_id and not count:
+        click.echo(f"'{source_id}' not found in failed items.")
+        return
+    click.echo(f"Cleared {count} failed item(s). Next scout run will re-queue them.")
 
 
 if __name__ == "__main__":

@@ -68,3 +68,52 @@ def test_scan_expert_filters_by_topic_when_enabled(tmp_path):
         count = scan_expert(make_expert(filter_topics=True), state, keywords)
 
     assert count == 1
+
+
+def test_scan_expert_skips_already_pending(tmp_path):
+    state = StateManager(tmp_path / "Index")
+    keywords = ["sleep"]
+
+    mock_videos = [
+        MagicMock(video_id="vid1", title="Sleep Science", description="about sleep",
+                  upload_date="20230115", source_id="yt-vid1", url="https://yt.com/watch?v=vid1", iso_date="2023-01-15"),
+    ]
+
+    with patch("pipeline.scout.scanner.list_channel_videos", return_value=mock_videos):
+        first = scan_expert(make_expert(), state, keywords)
+        second = scan_expert(make_expert(), state, keywords)
+
+    assert first == 1
+    assert second == 0
+    assert len(state.pop_pending()) == 1
+
+
+def test_scan_expert_skips_failed(tmp_path):
+    state = StateManager(tmp_path / "Index")
+    state.add_failed("yt-vid1", "ingest_error", "boom")
+    keywords = ["sleep"]
+
+    mock_videos = [
+        MagicMock(video_id="vid1", title="Sleep Science", description="about sleep",
+                  upload_date="20230115", source_id="yt-vid1", url="https://yt.com/watch?v=vid1", iso_date="2023-01-15"),
+    ]
+
+    with patch("pipeline.scout.scanner.list_channel_videos", return_value=mock_videos):
+        count = scan_expert(make_expert(), state, keywords)
+
+    assert count == 0
+    assert state.pop_pending() == []
+
+
+def test_scan_expert_dedupes_within_single_scan(tmp_path):
+    state = StateManager(tmp_path / "Index")
+    keywords = ["sleep"]
+
+    video = MagicMock(video_id="vid1", title="Sleep Science", description="about sleep",
+                      upload_date="20230115", source_id="yt-vid1", url="https://yt.com/watch?v=vid1", iso_date="2023-01-15")
+
+    with patch("pipeline.scout.scanner.list_channel_videos", return_value=[video, video]):
+        count = scan_expert(make_expert(), state, keywords)
+
+    assert count == 1
+    assert len(state.pop_pending()) == 1

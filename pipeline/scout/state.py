@@ -59,7 +59,22 @@ class StateManager:
     def pop_pending(self) -> list[PendingItem]:
         items = self._load_json(self._pending_file, [])
         self._write_json(self._pending_file, [])
-        return [PendingItem(**i) for i in items]
+        downloaded = self._load_json(self._downloaded_file, {})
+        seen: set[str] = set()
+        result = []
+        for i in items:
+            sid = i["source_id"]
+            if sid in seen or sid in downloaded:
+                continue
+            seen.add(sid)
+            result.append(PendingItem(**i))
+        return result
+
+    def known_source_ids(self) -> set[str]:
+        downloaded = self._load_json(self._downloaded_file, {})
+        pending = self._load_json(self._pending_file, [])
+        failed = self._load_json(self._failed_file, {})
+        return set(downloaded) | {i["source_id"] for i in pending} | set(failed)
 
     def add_failed(self, source_id: str, reason: str, detail: str) -> None:
         data = self._load_json(self._failed_file, {})
@@ -68,3 +83,13 @@ class StateManager:
 
     def load_failed(self) -> dict:
         return self._load_json(self._failed_file, {})
+
+    def clear_failed(self, source_id: str | None = None) -> int:
+        data = self._load_json(self._failed_file, {})
+        if source_id is None:
+            count = len(data)
+            data = {}
+        else:
+            count = 1 if data.pop(source_id, None) is not None else 0
+        self._write_json(self._failed_file, data)
+        return count
