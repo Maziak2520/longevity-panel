@@ -39,6 +39,8 @@ class ExtractionConfig(BaseModel):
     build_model: str
     chunk_size_tokens: int
     chunk_overlap_tokens: int
+    max_output_tokens: int
+    min_split_words: int
     max_retries: int
     dead_letter_after: int
 

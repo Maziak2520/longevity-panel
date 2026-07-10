@@ -37,3 +37,9 @@ def test_chunk_preserves_all_content():
     combined = " ".join(chunks)
     for word in ["alpha", "beta", "gamma", "delta", "epsilon"]:
         assert word in combined
+
+
+def test_words_for_tokens_matches_chunker_conversion():
+    from pipeline.extract.chunker import words_for_tokens
+    assert words_for_tokens(3000) == 4000
+    assert words_for_tokens(200) == 266
