@@ -30,6 +30,7 @@ paths:
 extraction:
   model: "claude-haiku-4-5-20251001"
   build_model: "claude-sonnet-4-6"
+  build_map_model: "claude-haiku-4-5-20251001"
   chunk_size_tokens: 3000
   chunk_overlap_tokens: 200
   max_output_tokens: 8192
@@ -85,6 +86,7 @@ paths:
 extraction:
   model: "claude-haiku-4-5-20251001"
   build_model: "claude-sonnet-4-6"
+  build_map_model: "claude-haiku-4-5-20251001"
   chunk_size_tokens: 3000
   chunk_overlap_tokens: 200
   max_output_tokens: 8192
@@ -130,6 +132,7 @@ paths:
 extraction:
   model: "claude-haiku-4-5-20251001"
   build_model: "claude-sonnet-4-6"
+  build_map_model: "claude-haiku-4-5-20251001"
   chunk_size_tokens: 3000
   chunk_overlap_tokens: 200
   max_output_tokens: 8192
