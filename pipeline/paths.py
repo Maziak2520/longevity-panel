@@ -56,6 +56,10 @@ class AppPaths:
     def skill_references_dir(self) -> Path:
         return self.skill_output / "references"
 
+    @property
+    def build_state_file(self) -> Path:
+        return self.index_dir / "build_state.json"
+
 
 def startup_check(paths: AppPaths) -> None:
     for d in [

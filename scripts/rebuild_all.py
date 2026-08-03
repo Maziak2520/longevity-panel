@@ -21,7 +21,10 @@ def main() -> None:
     print("\n[3/4] Extract...")
     run("extract.py")
     print("\n[4/4] Build...")
-    run("build.py")
+    # The monthly full rebuild forces every topic to recompile (ignoring the
+    # incremental unchanged-since-last-build cache) so any prompt/format change
+    # is picked up across the whole knowledge base.
+    run("build.py", "--force")
     print("\n=== Done ===")
 
 

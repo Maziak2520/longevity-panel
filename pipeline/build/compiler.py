@@ -1,4 +1,5 @@
 from __future__ import annotations
+import hashlib
 import json
 from pathlib import Path
 
@@ -56,6 +57,39 @@ def meets_build_threshold(claims: list[Claim], min_experts: int, min_claims: int
 
 def _chunk(items: list, size: int) -> list[list]:
     return [items[i:i + size] for i in range(0, len(items), size)]
+
+
+def topic_fingerprint(claims: list[Claim]) -> str:
+    """Stable content hash of a topic's claims.
+
+    Covers the fields that affect the compiled summary (id, text, protocol,
+    strength, subtopic, supersession) and deliberately excludes volatile
+    metadata like `extracted_at`, so re-extracting an unchanged transcript does
+    not force a rebuild. Order-independent (claims are sorted first).
+    """
+    items = sorted(
+        (c.claim_id, c.claim_text, c.protocol_details, c.strength, c.subtopic, c.superseded_by)
+        for c in claims
+    )
+    payload = json.dumps(items, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def should_rebuild(fingerprint: str, previous: str | None, ref_exists: bool, force: bool) -> bool:
+    """A topic is rebuilt when forced, when its reference file is missing, or
+    when its claims changed since the last recorded build."""
+    return force or not ref_exists or previous != fingerprint
+
+
+def load_build_state(path: Path) -> dict[str, str]:
+    """Per-topic fingerprints from the last build ({topic: sha256}); {} if none."""
+    if path.exists():
+        return json.loads(path.read_text())
+    return {}
+
+
+def save_build_state(path: Path, state: dict[str, str]) -> None:
+    path.write_text(json.dumps(state, indent=2, sort_keys=True))
 
 
 def compile_topic_markdown(
