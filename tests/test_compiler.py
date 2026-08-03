@@ -102,3 +102,51 @@ def test_compile_topic_map_chunks_large_expert(tmp_path):
     # 2 map chunks for expert-a + 1 for expert-b + 1 reduce = 4
     assert total_calls == 4
     assert result == "summary text"
+
+
+def test_compile_topic_uses_cheap_map_model_and_sonnet_reduce():
+    """Map calls use map_model (cheap); the final reduce uses the reduce model."""
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text="summary text")]
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = mock_response
+
+    # 2 experts, 1 claim each, chunk size 1, threshold 1 → 2 map calls + 1 reduce.
+    claims = [make_claim("expert-a", "sub0", topic="nutrition"),
+              make_claim("expert-b", "sub0", topic="nutrition")]
+
+    with patch("pipeline.build.compiler.anthropic.Anthropic", return_value=mock_client):
+        compile_topic_markdown(
+            topic="nutrition",
+            claims=claims,
+            model="reduce-model",
+            today="2026-08-02",
+            map_reduce_threshold=1,
+            map_chunk_size=1,
+            map_model="map-model",
+        )
+
+    models_used = [c.kwargs["model"] for c in mock_client.messages.create.call_args_list]
+    # First two calls are the map phase, the last is the reduce.
+    assert models_used[:2] == ["map-model", "map-model"]
+    assert models_used[-1] == "reduce-model"
+
+
+def test_compile_topic_map_model_defaults_to_model():
+    """When map_model is omitted, both phases use `model` (backwards compatible)."""
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text="summary text")]
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = mock_response
+
+    claims = [make_claim("expert-a", "sub0", topic="nutrition"),
+              make_claim("expert-b", "sub0", topic="nutrition")]
+
+    with patch("pipeline.build.compiler.anthropic.Anthropic", return_value=mock_client):
+        compile_topic_markdown(
+            topic="nutrition", claims=claims, model="only-model", today="2026-08-02",
+            map_reduce_threshold=1, map_chunk_size=1,
+        )
+
+    models_used = {c.kwargs["model"] for c in mock_client.messages.create.call_args_list}
+    assert models_used == {"only-model"}

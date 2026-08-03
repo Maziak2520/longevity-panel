@@ -62,6 +62,7 @@ def main(no_push: bool, only_topic: str | None) -> None:
                 today=today,
                 map_reduce_threshold=config.build.map_reduce_threshold,
                 map_chunk_size=config.build.map_chunk_size,
+                map_model=config.extraction.build_map_model,
             )
             topic_file = paths.skill_references_dir / f"{topic.replace('_', '-')}.md"
             topic_file.write_text(markdown)

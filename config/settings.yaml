@@ -5,6 +5,10 @@ paths:
 extraction:
   model: "claude-haiku-4-5-20251001"
   build_model: "claude-sonnet-4-6"
+  # Map phase of the topic build (one call per chunk — the bulk of the volume)
+  # runs on the cheaper model; only the final reduce uses build_model. This keeps
+  # a full 9-topic rebuild affordable under the LiteLLM per-key budget (ADR 0001).
+  build_map_model: "claude-haiku-4-5-20251001"
   chunk_size_tokens: 3000
   chunk_overlap_tokens: 200
   max_output_tokens: 8192

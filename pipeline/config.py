@@ -37,6 +37,7 @@ class PathsConfig(BaseModel):
 class ExtractionConfig(BaseModel):
     model: str
     build_model: str
+    build_map_model: str
     chunk_size_tokens: int
     chunk_overlap_tokens: int
     max_output_tokens: int

@@ -65,7 +65,15 @@ def compile_topic_markdown(
     today: str,
     map_reduce_threshold: int = 50,
     map_chunk_size: int = 100,
+    map_model: str | None = None,
 ) -> str:
+    # The map phase makes one call per chunk (the bulk of the calls) and only
+    # produces intermediate per-expert bullets, so it runs on the cheaper
+    # `map_model` (e.g. haiku). The final reduce — and the small-topic direct
+    # compile — stay on `model` (e.g. sonnet) for output quality. Defaults to
+    # `model` for both when `map_model` is not given (backwards compatible).
+    reduce_model = model
+    map_model = map_model or model
     client = anthropic.Anthropic()
     topic_title = topic.replace("_", " ").replace("-", " ").title()
     expert_count = len({c.person for c in claims})
@@ -81,7 +89,7 @@ def compile_topic_markdown(
             today=today,
         )
         response = client.messages.create(
-            model=model,
+            model=reduce_model,
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -104,7 +112,7 @@ def compile_topic_markdown(
                 f"in 3-5 bullet points with source citations:\n\n{claims_json}"
             )
             map_resp = client.messages.create(
-                model=model,
+                model=map_model,
                 max_tokens=1024,
                 messages=[{"role": "user", "content": map_prompt}],
             )
@@ -122,7 +130,7 @@ def compile_topic_markdown(
         today=today,
     )
     reduce_resp = client.messages.create(
-        model=model,
+        model=reduce_model,
         max_tokens=4096,
         messages=[{"role": "user", "content": reduce_prompt}],
     )
