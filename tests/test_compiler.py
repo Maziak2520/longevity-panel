@@ -1,7 +1,16 @@
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock, call
-from pipeline.build.compiler import group_claims_by_topic, meets_build_threshold, compile_topic_markdown, _chunk
+from pipeline.build.compiler import (
+    group_claims_by_topic,
+    meets_build_threshold,
+    compile_topic_markdown,
+    _chunk,
+    topic_fingerprint,
+    should_rebuild,
+    load_build_state,
+    save_build_state,
+)
 from pipeline.models import Claim
 
 
@@ -150,3 +159,45 @@ def test_compile_topic_map_model_defaults_to_model():
 
     models_used = {c.kwargs["model"] for c in mock_client.messages.create.call_args_list}
     assert models_used == {"only-model"}
+
+
+def test_topic_fingerprint_is_order_independent():
+    a = make_claim("peter-attia", "sleep duration")
+    b = make_claim("rhonda-patrick", "sleep quality")
+    assert topic_fingerprint([a, b]) == topic_fingerprint([b, a])
+
+
+def test_topic_fingerprint_ignores_extracted_at():
+    a = make_claim("peter-attia", "sleep duration")
+    a2 = a.model_copy(update={"extracted_at": "2030-01-01T00:00:00"})
+    assert topic_fingerprint([a]) == topic_fingerprint([a2])
+
+
+def test_topic_fingerprint_changes_on_content_change():
+    a = make_claim("peter-attia", "sleep duration")
+    changed = a.model_copy(update={"claim_text": "A materially different claim."})
+    assert topic_fingerprint([a]) != topic_fingerprint([changed])
+
+
+def test_topic_fingerprint_changes_when_claim_added():
+    a = make_claim("peter-attia", "sleep duration")
+    b = make_claim("rhonda-patrick", "sleep quality")
+    assert topic_fingerprint([a]) != topic_fingerprint([a, b])
+
+
+@pytest.mark.parametrize("fp,prev,ref_exists,force,expected", [
+    ("x", "x", True, False, False),   # unchanged + file present → skip
+    ("x", "y", True, False, True),    # changed claims → rebuild
+    ("x", "x", False, False, True),   # reference file missing → rebuild
+    ("x", None, True, False, True),   # never built before → rebuild
+    ("x", "x", True, True, True),     # --force → rebuild regardless
+])
+def test_should_rebuild(fp, prev, ref_exists, force, expected):
+    assert should_rebuild(fp, prev, ref_exists, force) is expected
+
+
+def test_build_state_round_trip(tmp_path):
+    path = tmp_path / "build_state.json"
+    assert load_build_state(path) == {}          # missing file → empty
+    save_build_state(path, {"sleep": "abc", "gut": "def"})
+    assert load_build_state(path) == {"sleep": "abc", "gut": "def"}

@@ -15,7 +15,15 @@ load_dotenv()
 from pipeline.config import load_config
 from pipeline.paths import resolve_path, AppPaths, startup_check
 from pipeline.models import load_claims
-from pipeline.build.compiler import group_claims_by_topic, meets_build_threshold, compile_topic_markdown
+from pipeline.build.compiler import (
+    group_claims_by_topic,
+    meets_build_threshold,
+    compile_topic_markdown,
+    topic_fingerprint,
+    should_rebuild,
+    load_build_state,
+    save_build_state,
+)
 from pipeline.build.skill_writer import write_skill_md, collect_topic_summaries, TopicSummary
 from pipeline.build.git_publisher import git_publish
 
@@ -25,7 +33,8 @@ CONFIG_DIR = Path(__file__).parent.parent / "config"
 @click.command()
 @click.option("--no-push", is_flag=True, default=False, help="Skip git commit and push after build")
 @click.option("--topic", "only_topic", default=None, help="Rebuild a single topic only (e.g. nutrition)")
-def main(no_push: bool, only_topic: str | None) -> None:
+@click.option("--force", is_flag=True, default=False, help="Recompile every topic, ignoring the unchanged-since-last-build cache")
+def main(no_push: bool, only_topic: str | None, force: bool) -> None:
     config = load_config(CONFIG_DIR)
     paths = AppPaths(
         knowledge_store=resolve_path(config.paths.knowledge_store),
@@ -48,9 +57,20 @@ def main(no_push: bool, only_topic: str | None) -> None:
             raise click.ClickException(f"Topic '{only_topic}' not found in claims (available: {all_topics})")
     topic_summaries = []
 
+    # Only recompile topics whose claims changed since the last build (unless
+    # --force). Sonnet summarisation is the dominant cost, so skipping unchanged
+    # topics keeps the weekly build affordable under the LiteLLM budget.
+    build_state = load_build_state(paths.build_state_file)
+
     for topic, claims in grouped.items():
         if not meets_build_threshold(claims, config.build.min_experts_to_publish, config.build.min_claims_to_publish):
             click.echo(f"  SKIP {topic}: below threshold ({len(claims)} claims, {len({c.person for c in claims})} experts)")
+            continue
+
+        topic_file = paths.skill_references_dir / f"{topic.replace('_', '-')}.md"
+        fingerprint = topic_fingerprint(claims)
+        if not should_rebuild(fingerprint, build_state.get(topic), topic_file.exists(), force):
+            click.echo(f"  SKIP {topic}: unchanged since last build ({len(claims)} claims)")
             continue
 
         click.echo(f"  Compiling {topic} ({len(claims)} claims)...")
@@ -64,8 +84,8 @@ def main(no_push: bool, only_topic: str | None) -> None:
                 map_chunk_size=config.build.map_chunk_size,
                 map_model=config.extraction.build_map_model,
             )
-            topic_file = paths.skill_references_dir / f"{topic.replace('_', '-')}.md"
             topic_file.write_text(markdown)
+            build_state[topic] = fingerprint
             topic_summaries.append(TopicSummary(
                 topic=topic,
                 filename=topic_file.name,
@@ -75,6 +95,8 @@ def main(no_push: bool, only_topic: str | None) -> None:
             ))
         except Exception as exc:
             click.echo(f"  FAIL {topic}: {exc}")
+
+    save_build_state(paths.build_state_file, build_state)
 
     # Build the topic map from ALL reference files on disk (not just the topics
     # rebuilt this run) so a partial/single-topic build never drops other topics.
