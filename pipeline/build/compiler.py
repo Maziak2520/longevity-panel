@@ -3,8 +3,8 @@ import hashlib
 import json
 from pathlib import Path
 
-import anthropic
 from pipeline.models import Claim
+from pipeline.llm import complete_text
 
 BUILD_PROMPT_TEMPLATE = """You are compiling a longevity knowledge reference from expert claims.
 
@@ -108,7 +108,6 @@ def compile_topic_markdown(
     # `model` for both when `map_model` is not given (backwards compatible).
     reduce_model = model
     map_model = map_model or model
-    client = anthropic.Anthropic()
     topic_title = topic.replace("_", " ").replace("-", " ").title()
     expert_count = len({c.person for c in claims})
 
@@ -122,12 +121,7 @@ def compile_topic_markdown(
             expert_count=expert_count,
             today=today,
         )
-        response = client.messages.create(
-            model=reduce_model,
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.content[0].text
+        return complete_text(reduce_model, prompt, max_tokens=4096)
 
     # Map: summarise each expert's claims in chunks to stay within token limits
     intermediate_blocks = []
@@ -145,12 +139,7 @@ def compile_topic_markdown(
                 f"Summarise {expert_name}'s position on {topic_title} "
                 f"in 3-5 bullet points with source citations:\n\n{claims_json}"
             )
-            map_resp = client.messages.create(
-                model=map_model,
-                max_tokens=1024,
-                messages=[{"role": "user", "content": map_prompt}],
-            )
-            chunk_summaries.append(map_resp.content[0].text)
+            chunk_summaries.append(complete_text(map_model, map_prompt, max_tokens=1024))
 
         intermediate_blocks.append(f"### {expert_name}\n" + "\n".join(chunk_summaries))
 
@@ -163,9 +152,4 @@ def compile_topic_markdown(
         expert_count=expert_count,
         today=today,
     )
-    reduce_resp = client.messages.create(
-        model=reduce_model,
-        max_tokens=4096,
-        messages=[{"role": "user", "content": reduce_prompt}],
-    )
-    return reduce_resp.content[0].text
+    return complete_text(reduce_model, reduce_prompt, max_tokens=4096)

@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from pathlib import Path
 from pipeline.extract.extractor import extract_claims_from_chunk, EXTRACTION_SYSTEM_PROMPT
 from pipeline.models import Claim
 
@@ -21,18 +20,20 @@ def make_mock_claim(topic="sleep"):
     }
 
 
+def _response(claims):
+    r = MagicMock()
+    r.claims = claims
+    return r
+
+
 def test_extraction_system_prompt_contains_topics():
     for topic in VALID_TOPICS:
         assert topic in EXTRACTION_SYSTEM_PROMPT
 
 
-def test_extract_claims_returns_claim_objects(mocker):
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.claims = [MagicMock(**make_mock_claim())]
-    mock_client.chat.completions.create.return_value = mock_response
-
-    with patch("pipeline.extract.extractor.build_instructor_client", return_value=mock_client):
+def test_extract_claims_returns_claim_objects():
+    mock = MagicMock(return_value=_response([MagicMock(**make_mock_claim())]))
+    with patch("pipeline.extract.extractor.structured_extract", mock):
         claims = extract_claims_from_chunk(
             chunk="I aim for eight hours every night.",
             chunk_index=0,
@@ -52,13 +53,9 @@ def test_extract_claims_returns_claim_objects(mocker):
     assert claims[0].topic == "sleep"
 
 
-def test_extract_claims_returns_empty_for_irrelevant_chunk(mocker):
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.claims = []
-    mock_client.chat.completions.create.return_value = mock_response
-
-    with patch("pipeline.extract.extractor.build_instructor_client", return_value=mock_client):
+def test_extract_claims_returns_empty_for_irrelevant_chunk():
+    mock = MagicMock(return_value=_response([]))
+    with patch("pipeline.extract.extractor.structured_extract", mock):
         claims = extract_claims_from_chunk(
             chunk="That was a great recipe for pasta.",
             chunk_index=0,
@@ -97,18 +94,12 @@ def test_truncated_chunk_splits_and_merges():
 
     long_chunk = " ".join(f"word{i}" for i in range(400))
 
-    def fake_create(**kwargs):
-        content = kwargs["messages"][0]["content"]
-        if len(content.split()) > 300:
+    def fake_extract(*, user, **_):
+        if len(user.split()) > 300:      # `user` includes the prompt preamble + chunk
             raise IncompleteOutputException()
-        response = MagicMock()
-        response.claims = [MagicMock(**make_mock_claim())]
-        return response
+        return _response([MagicMock(**make_mock_claim())])
 
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.side_effect = fake_create
-
-    with patch("pipeline.extract.extractor.build_instructor_client", return_value=mock_client):
+    with patch("pipeline.extract.extractor.structured_extract", side_effect=fake_extract):
         claims = extract_claims_splitting(
             **_kwargs(chunk=long_chunk, chunk_index=3),
             overlap_words=10,
@@ -123,10 +114,8 @@ def test_truncation_below_min_split_raises_without_retry():
     from instructor.core import IncompleteOutputException
     from pipeline.extract.extractor import extract_claims_splitting
 
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.side_effect = IncompleteOutputException()
-
-    with patch("pipeline.extract.extractor.build_instructor_client", return_value=mock_client):
+    mock = MagicMock(side_effect=IncompleteOutputException())
+    with patch("pipeline.extract.extractor.structured_extract", mock):
         with pytest.raises(IncompleteOutputException):
             extract_claims_splitting(
                 **_kwargs(chunk="short chunk"),
@@ -134,7 +123,7 @@ def test_truncation_below_min_split_raises_without_retry():
                 min_split_words=50,
             )
 
-    assert mock_client.chat.completions.create.call_count == 1
+    assert mock.call_count == 1
 
 
 def test_nested_splitting_produces_unique_claim_ids():
@@ -143,18 +132,12 @@ def test_nested_splitting_produces_unique_claim_ids():
 
     long_chunk = " ".join(f"word{i}" for i in range(800))
 
-    def fake_create(**kwargs):
-        content = kwargs["messages"][0]["content"]
-        if len(content.split()) > 150:
+    def fake_extract(*, user, **_):
+        if len(user.split()) > 150:
             raise IncompleteOutputException()
-        response = MagicMock()
-        response.claims = [MagicMock(**make_mock_claim())]
-        return response
+        return _response([MagicMock(**make_mock_claim())])
 
-    mock_client = MagicMock()
-    mock_client.chat.completions.create.side_effect = fake_create
-
-    with patch("pipeline.extract.extractor.build_instructor_client", return_value=mock_client):
+    with patch("pipeline.extract.extractor.structured_extract", side_effect=fake_extract):
         claims = extract_claims_splitting(
             **_kwargs(chunk=long_chunk, chunk_index=0),
             overlap_words=5,
