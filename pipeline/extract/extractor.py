@@ -1,13 +1,12 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 
-import anthropic
-import instructor
 from instructor.core import IncompleteOutputException
 from pydantic import BaseModel
 from tenacity import retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
 from pipeline.models import Claim, make_claim_id
+from pipeline.llm import structured_extract
 
 VALID_TOPICS = ["sleep", "nutrition", "supplements", "longevity", "exercise",
                 "stress_recovery", "hormones", "gut", "brain"]
@@ -42,11 +41,6 @@ class ExtractionResponse(BaseModel):
     claims: list[ClaimExtraction]
 
 
-def build_instructor_client():
-    client = anthropic.Anthropic()
-    return instructor.from_anthropic(client)
-
-
 # Truncated output (IncompleteOutputException) is deterministic — retrying the
 # identical request cannot succeed, so it is excluded from retries and handled
 # by extract_claims_splitting instead.
@@ -69,18 +63,12 @@ def extract_claims_from_chunk(
     model: str,
     max_output_tokens: int,
 ) -> list[Claim]:
-    client = build_instructor_client()
-    response = client.chat.completions.create(
+    response = structured_extract(
         model=model,
-        max_tokens=max_output_tokens,
         system=EXTRACTION_SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Extract health/longevity claims from this transcript excerpt by {person_name}:\n\n{chunk}",
-            }
-        ],
+        user=f"Extract health/longevity claims from this transcript excerpt by {person_name}:\n\n{chunk}",
         response_model=ExtractionResponse,
+        max_output_tokens=max_output_tokens,
     )
 
     now = datetime.now(timezone.utc).isoformat()

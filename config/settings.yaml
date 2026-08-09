@@ -3,12 +3,15 @@ paths:
   skill_output: "${CASE_BASE_DIR}/Family/Health/Longevity/Health-Panel/.claude/skills/health-panel"
 
 extraction:
-  model: "claude-haiku-4-5-20251001"
+  # Extraction and the build map phase run on gpt-5.6-luna via the gateway (ADR 0002):
+  # validated on 5 transcripts at ~130% of Haiku's recall, 100% valid topics, ~5.6x
+  # cheaper. The final reduce (build_model) stays on Sonnet for synthesis quality.
+  # Rollback: set these back to claude-haiku-4-5-20251001.
+  model: "openai/gpt-5.6-luna"
   build_model: "claude-sonnet-4-6"
-  # Map phase of the topic build (one call per chunk — the bulk of the volume)
-  # runs on the cheaper model; only the final reduce uses build_model. This keeps
-  # a full 9-topic rebuild affordable under the LiteLLM per-key budget (ADR 0001).
-  build_map_model: "claude-haiku-4-5-20251001"
+  # Map phase (one call per chunk — the bulk of the volume) runs on the cheaper model;
+  # only the final reduce uses build_model. Keeps a full rebuild well within budget.
+  build_map_model: "openai/gpt-5.6-luna"
   chunk_size_tokens: 3000
   chunk_overlap_tokens: 200
   max_output_tokens: 8192

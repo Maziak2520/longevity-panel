@@ -87,17 +87,13 @@ def test_chunk_smaller_than_size():
 
 def test_compile_topic_map_chunks_large_expert(tmp_path):
     """When one expert has more claims than map_chunk_size, map is called multiple times for that expert."""
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text="summary text")]
-
-    mock_client = MagicMock()
-    mock_client.messages.create.return_value = mock_response
+    mock = MagicMock(return_value="summary text")
 
     # 3 claims for expert-a, chunk size 2 → 2 map calls for expert-a, 1 for expert-b, 1 reduce = 4 total
     claims = [make_claim("expert-a", f"sub{i}", topic="nutrition") for i in range(3)]
     claims += [make_claim("expert-b", "sub0", topic="nutrition")]
 
-    with patch("pipeline.build.compiler.anthropic.Anthropic", return_value=mock_client):
+    with patch("pipeline.build.compiler.complete_text", mock):
         result = compile_topic_markdown(
             topic="nutrition",
             claims=claims,
@@ -107,24 +103,20 @@ def test_compile_topic_map_chunks_large_expert(tmp_path):
             map_chunk_size=2,
         )
 
-    total_calls = mock_client.messages.create.call_count
     # 2 map chunks for expert-a + 1 for expert-b + 1 reduce = 4
-    assert total_calls == 4
+    assert mock.call_count == 4
     assert result == "summary text"
 
 
 def test_compile_topic_uses_cheap_map_model_and_sonnet_reduce():
     """Map calls use map_model (cheap); the final reduce uses the reduce model."""
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text="summary text")]
-    mock_client = MagicMock()
-    mock_client.messages.create.return_value = mock_response
+    mock = MagicMock(return_value="summary text")
 
     # 2 experts, 1 claim each, chunk size 1, threshold 1 → 2 map calls + 1 reduce.
     claims = [make_claim("expert-a", "sub0", topic="nutrition"),
               make_claim("expert-b", "sub0", topic="nutrition")]
 
-    with patch("pipeline.build.compiler.anthropic.Anthropic", return_value=mock_client):
+    with patch("pipeline.build.compiler.complete_text", mock):
         compile_topic_markdown(
             topic="nutrition",
             claims=claims,
@@ -135,7 +127,7 @@ def test_compile_topic_uses_cheap_map_model_and_sonnet_reduce():
             map_model="map-model",
         )
 
-    models_used = [c.kwargs["model"] for c in mock_client.messages.create.call_args_list]
+    models_used = [c.args[0] for c in mock.call_args_list]   # model is the first positional arg
     # First two calls are the map phase, the last is the reduce.
     assert models_used[:2] == ["map-model", "map-model"]
     assert models_used[-1] == "reduce-model"
@@ -143,21 +135,18 @@ def test_compile_topic_uses_cheap_map_model_and_sonnet_reduce():
 
 def test_compile_topic_map_model_defaults_to_model():
     """When map_model is omitted, both phases use `model` (backwards compatible)."""
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text="summary text")]
-    mock_client = MagicMock()
-    mock_client.messages.create.return_value = mock_response
+    mock = MagicMock(return_value="summary text")
 
     claims = [make_claim("expert-a", "sub0", topic="nutrition"),
               make_claim("expert-b", "sub0", topic="nutrition")]
 
-    with patch("pipeline.build.compiler.anthropic.Anthropic", return_value=mock_client):
+    with patch("pipeline.build.compiler.complete_text", mock):
         compile_topic_markdown(
             topic="nutrition", claims=claims, model="only-model", today="2026-08-02",
             map_reduce_threshold=1, map_chunk_size=1,
         )
 
-    models_used = {c.kwargs["model"] for c in mock_client.messages.create.call_args_list}
+    models_used = {c.args[0] for c in mock.call_args_list}
     assert models_used == {"only-model"}
 
 
