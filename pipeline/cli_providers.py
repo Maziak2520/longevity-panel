@@ -158,3 +158,77 @@ def _run_with_backoff(adapter: ProviderAdapter, system: str | None,
                         adapter.name, delay, str(exc)[:120])
             time.sleep(delay)
             delay = min(delay * 2, 600)
+
+
+_FENCE = re.compile(r"```(?:json)?", re.IGNORECASE)
+
+
+def _extract_json(text: str) -> str:
+    """Strip fences/prose and return the JSON substring (from first { or [)."""
+    t = _FENCE.sub("", text).replace("```", "").strip()
+    starts = [i for i in (t.find("{"), t.find("[")) if i != -1]
+    if not starts:
+        return ""
+    return t[min(starts):].strip()
+
+
+def _balanced(s: str) -> bool:
+    """Crude brace/bracket balance, ignoring string contents. Empty => False."""
+    if not s:
+        return False
+    depth = 0
+    in_str = False
+    esc = False
+    for ch in s:
+        if esc:
+            esc = False
+            continue
+        if ch == "\\":
+            esc = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if ch in "{[":
+            depth += 1
+        elif ch in "}]":
+            depth -= 1
+    return depth == 0
+
+
+def structured_via_cli(provider: str, model: str | None, system: str | None,
+                       user: str, response_model: type[T], max_output_tokens: int) -> T:
+    """Return a validated response_model from the provider CLI.
+
+    Prompt-enforces JSON, validates, and repairs on validation failure up to
+    max_retries. Unbalanced (truncated) JSON re-raises IncompleteOutputException
+    so extract_claims_splitting can halve the chunk. max_output_tokens is accepted
+    for signature compatibility but the CLIs manage their own output length.
+    """
+    adapter = _adapter(provider)
+    schema = json.dumps(response_model.model_json_schema())
+    instruction = (
+        "\n\nReturn ONLY a single JSON object matching this schema. "
+        "No prose, no markdown fences.\nSchema:\n" + schema
+    )
+    prompt = user + instruction
+    last_err: Exception | None = None
+    for _ in range(_SETTINGS["max_retries"]):
+        text = _run_with_backoff(adapter, system, prompt, model)
+        raw = _extract_json(text)
+        if raw and not _balanced(raw):
+            raise IncompleteOutputException()
+        try:
+            return response_model.model_validate_json(raw)
+        except (ValidationError, ValueError) as exc:
+            last_err = exc
+            prompt = (
+                user + instruction +
+                f"\n\nYour previous reply was invalid ({exc}). Return corrected JSON only."
+            )
+    raise ProviderError(
+        f"{provider} structured output failed after "
+        f"{_SETTINGS['max_retries']} attempts: {last_err}"
+    )
