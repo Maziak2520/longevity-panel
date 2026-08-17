@@ -78,6 +78,37 @@ Negative / trade-offs:
 - **Direct API via Cloudflare now.** Still metered spend, not subscription. Kept
   as an unbuilt future seam only.
 
+## Validation (live)
+
+Verified end-to-end against the live Claude **Max 20×** subscription on 2026-08-17:
+`scripts/selfcheck.py` → `OK claude: text='pong' structured=ok=True`; a real
+Peter-Attia transcript (163 540 chars → 9 chunks) extracted 9 + 17 = 26 valid
+claims from its first two chunks (`cli/claude:claude-haiku-4-5-20251001`). Two
+integration bugs surfaced only under live fire and were fixed with tests:
+1. **Hook-polluted exit code** — `claude -p` returns a non-zero exit when an
+   unrelated environment `SessionEnd` hook is cancelled, even on success; the
+   adapter now trusts a valid parsed payload over the exit code.
+2. **Gateway creds leaking via `.env`** — `load_dotenv()` put the old
+   `ANTHROPIC_API_KEY`/`BASE_URL` in the environment, flipping Claude Code into
+   API mode against the retired gateway; the adapter now scrubs provider-API env
+   vars so the CLIs always use subscription OAuth.
+
+## Known costs / follow-ups (not blocking)
+
+- **Per-call overhead.** Each `claude -p` call carries ~22–25 k tokens of Claude
+  Code session setup (CLAUDE.md discovery, plugins, base prompt). `--bare` would
+  remove it but disables subscription auth (API-key only), so it is unusable here.
+  Inherent to headless Claude Code on a subscription; fine for the weekly cadence,
+  costly for the one-time 457-transcript backlog catch-up.
+- **SessionEnd hook latency.** The user-global `~/.claude/settings.json`
+  SessionStart/SessionEnd hooks run a C.A.S.E. `sync.sh` git push/pull on every
+  call; when the git op stalls to its cancellation timeout it dominates runtime and
+  can time out long transcripts. Cannot be disabled without `--bare`. Recommended
+  fix (user's environment, needs their approval): guard those hooks to no-op in
+  headless/pipeline runs (e.g. skip when stdin is a pipe or when a pipeline env var
+  is set). Until then, the extract cron has no per-run timeout and is resumable, so
+  the backlog chips away across runs.
+
 ## Panel review
 
 Skipped per user direction (user-driven, reversible: model ids + provider-enabled
