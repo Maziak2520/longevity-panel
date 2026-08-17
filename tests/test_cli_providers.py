@@ -216,3 +216,20 @@ def test_adapter_run_scrubs_provider_api_env(monkeypatch):
     assert "ANTHROPIC_API_KEY" not in env
     assert "ANTHROPIC_BASE_URL" not in env
     assert env.get("LP_KEEP_ME") == "keepme"  # non-provider vars are preserved
+
+
+def test_claude_adapter_disables_hooks(monkeypatch):
+    # Non-interactive pipeline calls must skip the user's global Claude Code hooks
+    # (C.A.S.E. git-sync) while keeping subscription auth — via disableAllHooks.
+    import json as _json
+    captured = {}
+
+    def fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return _fake_completed(0, _claude_envelope("ok"))
+
+    monkeypatch.setattr(cp.subprocess, "run", fake_run)
+    assert cp.REGISTRY["claude"].run("sys", "u", "claude-haiku-4-5-20251001", 5) == "ok"
+    argv = captured["argv"]
+    assert "--settings" in argv
+    assert _json.loads(argv[argv.index("--settings") + 1]) == {"disableAllHooks": True}

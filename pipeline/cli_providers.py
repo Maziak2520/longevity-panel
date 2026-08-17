@@ -139,10 +139,15 @@ def _parse_raw(stdout: str) -> str:
 # claude runs in a neutral cwd with tools effectively unusable in headless -p mode,
 # so it behaves as a pure completion (validated live: is_error=false, no tool use,
 # permission_denials=[], clean JSON on stdout). See ADR 0003 "Validation (live)".
+# --settings disableAllHooks skips the user's global Claude Code hooks (the C.A.S.E.
+# SessionStart/SessionEnd git-sync) — unwanted and slow in these non-interactive
+# runs — while keeping subscription OAuth auth (unlike --bare, which forces API-key
+# auth). Passed as two argv elements so subprocess sends the JSON verbatim.
 REGISTRY: dict[str, ProviderAdapter] = {
     "claude": ProviderAdapter(
         "claude", "claude",
-        ["-p", "--output-format", "json"], "--model", "--system-prompt",
+        ["-p", "--output-format", "json", "--settings", '{"disableAllHooks": true}'],
+        "--model", "--system-prompt",
         _parse_claude, cwd=_NEUTRAL_CWD,
     ),
     "gemini": ProviderAdapter(

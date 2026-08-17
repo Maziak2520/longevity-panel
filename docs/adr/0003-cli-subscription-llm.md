@@ -100,14 +100,18 @@ integration bugs surfaced only under live fire and were fixed with tests:
   remove it but disables subscription auth (API-key only), so it is unusable here.
   Inherent to headless Claude Code on a subscription; fine for the weekly cadence,
   costly for the one-time 457-transcript backlog catch-up.
-- **SessionEnd hook latency.** The user-global `~/.claude/settings.json`
-  SessionStart/SessionEnd hooks run a C.A.S.E. `sync.sh` git push/pull on every
-  call; when the git op stalls to its cancellation timeout it dominates runtime and
-  can time out long transcripts. Cannot be disabled without `--bare`. Recommended
-  fix (user's environment, needs their approval): guard those hooks to no-op in
-  headless/pipeline runs (e.g. skip when stdin is a pipe or when a pipeline env var
-  is set). Until then, the extract cron has no per-run timeout and is resumable, so
-  the backlog chips away across runs.
+- **SessionEnd hook latency — RESOLVED (2026-08-17).** The user-global
+  `~/.claude/settings.json` SessionStart/SessionEnd hooks run a C.A.S.E. `sync.sh`
+  git push/pull on every call and, when the git op stalled to its cancellation
+  timeout, dominated runtime and timed out long transcripts. The claude adapter now
+  passes `--settings '{"disableAllHooks": true}'`, which skips all hooks for these
+  non-interactive calls while keeping subscription OAuth (unlike `--bare`, which
+  forces API-key auth). Verified live: clean stderr, no hook noise, `is_error=false`.
+  Interactive Claude Code sessions are unaffected (global settings untouched).
+- **`.env` cleanup (2026-08-17).** The dead gateway creds (`ANTHROPIC_BASE_URL`,
+  `ANTHROPIC_API_KEY`) were removed from `.env`; only `GROQ_API_KEY` (Whisper
+  transcription) and `CASE_BASE_DIR` remain. The adapter's env-scrub still guards
+  against a stray key being reintroduced.
 
 ## Panel review
 
