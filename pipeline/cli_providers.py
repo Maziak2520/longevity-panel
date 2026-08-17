@@ -232,3 +232,41 @@ def structured_via_cli(provider: str, model: str | None, system: str | None,
         f"{provider} structured output failed after "
         f"{_SETTINGS['max_retries']} attempts: {last_err}"
     )
+
+
+def run_freeform(provider: str, model: str | None, prompt: str,
+                 max_tokens: int, system: str | None = None) -> str:
+    """Freeform text completion (build path). max_tokens accepted for signature
+    compatibility; the CLI manages output length."""
+    return _run_with_backoff(_adapter(provider), system, prompt, model)
+
+
+def providers_for(model_ids) -> set[str]:
+    return {parse_model_id(m)[0] for m in model_ids}
+
+
+def ensure_cli_ready(provider: str, providers_cfg) -> None:
+    """Preflight: provider enabled in config, binary present, and authenticated.
+    Raises SystemExit with an actionable message on any failure."""
+    cfg = providers_cfg.get(provider)
+    if cfg is None or not cfg.enabled:
+        raise SystemExit(
+            f"Provider '{provider}' is referenced by a model id but not enabled in "
+            f"config/settings.yaml (providers.{provider}.enabled: true)."
+        )
+    adapter = _adapter(provider)
+    if shutil.which(adapter.binary) is None:
+        raise SystemExit(
+            f"CLI '{adapter.binary}' not found on PATH. Install it and run "
+            f"`{adapter.binary} login`."
+        )
+    try:
+        adapter.run(None, "Reply with the single word ok.", None,
+                    min(60, _SETTINGS["timeout_s"]))
+    except RateLimited:
+        return  # reachable + authed, just throttled
+    except Exception as exc:
+        raise SystemExit(
+            f"CLI '{adapter.binary}' is installed but not ready (auth?): {exc}. "
+            f"Try `{adapter.binary} login`."
+        )

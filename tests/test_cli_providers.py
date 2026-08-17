@@ -85,3 +85,21 @@ def test_structured_rate_limit_then_success(monkeypatch):
     _install(monkeypatch, [cp.RateLimited("rate limit"), '{"items": [{"a": 9}]}'])
     out = cp.structured_via_cli("claude", None, "sys", "user", _Resp, 256)
     assert out.items[0].a == 9
+
+
+from pipeline.config import ProviderConfig
+
+
+def test_run_freeform_returns_text(monkeypatch):
+    _install(monkeypatch, ["hello world"])
+    assert cp.run_freeform("claude", None, "say hi", 32) == "hello world"
+
+
+def test_providers_for_dedupes():
+    got = cp.providers_for(["cli/claude:claude-sonnet-4-6", "cli/claude", "cli/gemini"])
+    assert got == {"claude", "gemini"}
+
+
+def test_ensure_cli_ready_rejects_disabled():
+    with pytest.raises(SystemExit):
+        cp.ensure_cli_ready("claude", {"claude": ProviderConfig(enabled=False)})
