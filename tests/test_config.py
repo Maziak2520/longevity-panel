@@ -47,8 +47,11 @@ build:
   map_chunk_size: 100
   min_experts_to_publish: 2
   min_claims_to_publish: 3
+providers:
+  claude:
+    enabled: true
 api:
-  monthly_spend_limit_usd: 20
+  cli_timeout_s: 180
   extract_limit: null
 """)
     config = load_config(config_dir)
@@ -103,8 +106,11 @@ build:
   map_chunk_size: 100
   min_experts_to_publish: 2
   min_claims_to_publish: 3
+providers:
+  claude:
+    enabled: true
 api:
-  monthly_spend_limit_usd: 20
+  cli_timeout_s: 180
   extract_limit: null
 """)
     config = load_config(config_dir)
@@ -149,8 +155,11 @@ build:
   map_chunk_size: 100
   min_experts_to_publish: 2
   min_claims_to_publish: 3
+providers:
+  claude:
+    enabled: true
 api:
-  monthly_spend_limit_usd: 20
+  cli_timeout_s: 180
   extract_limit: null
 """)
     config = load_config(config_dir)
