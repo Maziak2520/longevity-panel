@@ -137,8 +137,8 @@ def _parse_raw(stdout: str) -> str:
 
 
 # claude runs in a neutral cwd with tools effectively unusable in headless -p mode,
-# so it behaves as a pure completion. VERIFY in a later task's smoke test that it
-# never tries to touch the filesystem.
+# so it behaves as a pure completion (validated live: is_error=false, no tool use,
+# permission_denials=[], clean JSON on stdout). See ADR 0003 "Validation (live)".
 REGISTRY: dict[str, ProviderAdapter] = {
     "claude": ProviderAdapter(
         "claude", "claude",

@@ -65,7 +65,7 @@ def main(no_push: bool, only_topic: str | None, force: bool) -> None:
 
     # Only recompile topics whose claims changed since the last build (unless
     # --force). Sonnet summarisation is the dominant cost, so skipping unchanged
-    # topics keeps the weekly build affordable under the LiteLLM budget.
+    # topics keeps the weekly build well within the Max subscription rate window.
     build_state = load_build_state(paths.build_state_file)
 
     for topic, claims in grouped.items():
