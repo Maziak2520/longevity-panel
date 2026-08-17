@@ -37,9 +37,9 @@ class RateLimited(ProviderError):
 
 
 def configure(timeout_s: int | None = None, max_retries: int | None = None) -> None:
-    if timeout_s:
+    if timeout_s is not None:
         _SETTINGS["timeout_s"] = int(timeout_s)
-    if max_retries:
+    if max_retries is not None:
         _SETTINGS["max_retries"] = int(max_retries)
 
 
@@ -158,18 +158,44 @@ def _run_with_backoff(adapter: ProviderAdapter, system: str | None,
                         adapter.name, delay, str(exc)[:120])
             time.sleep(delay)
             delay = min(delay * 2, 600)
+    raise ProviderError(f"{adapter.name}: rate-limit retries exhausted")
 
 
 _FENCE = re.compile(r"```(?:json)?", re.IGNORECASE)
 
 
 def _extract_json(text: str) -> str:
-    """Strip fences/prose and return the JSON substring (from first { or [)."""
+    """Return the first balanced JSON value (object/array), trimming leading
+    fences/prose and any trailing prose. If the value never closes (truncated),
+    return from the opening bracket to end-of-string so _balanced() flags it."""
     t = _FENCE.sub("", text).replace("```", "").strip()
     starts = [i for i in (t.find("{"), t.find("[")) if i != -1]
     if not starts:
         return ""
-    return t[min(starts):].strip()
+    start = min(starts)
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(t)):
+        ch = t[i]
+        if esc:
+            esc = False
+            continue
+        if ch == "\\":
+            esc = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if ch in "{[":
+            depth += 1
+        elif ch in "}]":
+            depth -= 1
+            if depth == 0:
+                return t[start:i + 1]
+    return t[start:]  # never closed → truncated; _balanced() returns False
 
 
 def _balanced(s: str) -> bool:

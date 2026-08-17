@@ -103,3 +103,61 @@ def test_providers_for_dedupes():
 def test_ensure_cli_ready_rejects_disabled():
     with pytest.raises(SystemExit):
         cp.ensure_cli_ready("claude", {"claude": ProviderConfig(enabled=False)})
+
+
+import subprocess as _subprocess
+
+
+def test_structured_strips_trailing_prose(monkeypatch):
+    fake = _install(monkeypatch, ['{"items": [{"a": 5}]}\n\nNote: use {x} carefully.'])
+    out = cp.structured_via_cli("claude", None, "sys", "user", _Resp, 256)
+    assert out.items[0].a == 5
+    assert fake.calls == 1  # no wasted repair iteration
+
+
+def test_structured_trailing_unbalanced_brace_not_truncation(monkeypatch):
+    # Extra stray '}' in trailing prose must NOT be read as truncation.
+    _install(monkeypatch, ['{"items": [{"a": 6}]} oops }'])
+    out = cp.structured_via_cli("claude", None, "sys", "user", _Resp, 256)
+    assert out.items[0].a == 6
+
+
+def test_structured_exhausts_and_raises(monkeypatch):
+    _install(monkeypatch, ['{"items": "bad"}'])  # balanced but wrong schema, forever
+    with pytest.raises(cp.ProviderError):
+        cp.structured_via_cli("claude", None, "sys", "user", _Resp, 256)
+
+
+def _fake_completed(returncode=0, stdout="", stderr=""):
+    return _subprocess.CompletedProcess(args=[], returncode=returncode,
+                                        stdout=stdout, stderr=stderr)
+
+
+def test_adapter_run_success(monkeypatch):
+    adapter = cp.ProviderAdapter("t", "tbin", [], None, None, cp._parse_raw)
+    monkeypatch.setattr(cp.subprocess, "run", lambda *a, **k: _fake_completed(0, "hi\n"))
+    assert adapter.run(None, "u", None, 5) == "hi"
+
+
+def test_adapter_run_rate_limit(monkeypatch):
+    adapter = cp.ProviderAdapter("t", "tbin", [], None, None, cp._parse_raw)
+    monkeypatch.setattr(cp.subprocess, "run",
+                        lambda *a, **k: _fake_completed(1, "", "429 too many requests"))
+    with pytest.raises(cp.RateLimited):
+        adapter.run(None, "u", None, 5)
+
+
+def test_adapter_run_generic_error(monkeypatch):
+    adapter = cp.ProviderAdapter("t", "tbin", [], None, None, cp._parse_raw)
+    monkeypatch.setattr(cp.subprocess, "run", lambda *a, **k: _fake_completed(2, "", "boom"))
+    with pytest.raises(cp.ProviderError):
+        adapter.run(None, "u", None, 5)
+
+
+def test_adapter_run_timeout(monkeypatch):
+    adapter = cp.ProviderAdapter("t", "tbin", [], None, None, cp._parse_raw)
+    def _raise(*a, **k):
+        raise cp.subprocess.TimeoutExpired(cmd="tbin", timeout=5)
+    monkeypatch.setattr(cp.subprocess, "run", _raise)
+    with pytest.raises(cp.ProviderError):
+        adapter.run(None, "u", None, 5)
