@@ -9,6 +9,7 @@ the existing extractor split fallback still works.
 from __future__ import annotations
 import json
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -26,6 +27,16 @@ T = TypeVar("T", bound=BaseModel)
 _SETTINGS = {"timeout_s": 180, "max_retries": 3}
 _MAX_RATE_RETRIES = 4
 _NEUTRAL_CWD = tempfile.gettempdir()
+
+# Env vars that would flip an agentic CLI from subscription OAuth to metered API
+# mode. Scrubbed from every CLI subprocess so ADR 0003's subscription auth holds
+# even when a stale .env (loaded via load_dotenv) sets gateway credentials.
+_SCRUB_ENV = (
+    "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+    "OPENAI_API_KEY", "OPENAI_BASE_URL",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY",
+    "XAI_API_KEY", "GROK_API_KEY",
+)
 
 
 class ProviderError(RuntimeError):
@@ -83,10 +94,11 @@ class ProviderAdapter:
             stdin = user
         else:
             stdin = f"{system}\n\n{user}" if system else user
+        env = {k: v for k, v in os.environ.items() if k not in _SCRUB_ENV}
         try:
             proc = subprocess.run(
                 argv, input=stdin, capture_output=True, text=True,
-                timeout=timeout, cwd=self.cwd,
+                timeout=timeout, cwd=self.cwd, env=env,
             )
         except subprocess.TimeoutExpired as exc:
             raise ProviderError(f"{self.name} timed out after {timeout}s") from exc

@@ -194,3 +194,25 @@ def test_adapter_run_nonzero_exit_api_error_envelope_raises(monkeypatch):
                         lambda *a, **k: _fake_completed(1, _claude_envelope("boom", is_error=True), ""))
     with pytest.raises(cp.ProviderError):
         adapter.run(None, "u", None, 5)
+
+
+def test_adapter_run_scrubs_provider_api_env(monkeypatch):
+    # A stale ANTHROPIC_API_KEY / BASE_URL (e.g. from load_dotenv) must NOT leak
+    # into the CLI subprocess — otherwise claude uses metered API, not the sub.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-be-removed")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://gateway.example")
+    monkeypatch.setenv("LP_KEEP_ME", "keepme")
+    captured = {}
+
+    def fake_run(argv, **kwargs):
+        captured["env"] = kwargs.get("env")
+        return _fake_completed(0, "hi")
+
+    monkeypatch.setattr(cp.subprocess, "run", fake_run)
+    adapter = cp.ProviderAdapter("claude", "claude", [], None, None, cp._parse_raw)
+    assert adapter.run(None, "u", None, 5) == "hi"
+    env = captured["env"]
+    assert env is not None
+    assert "ANTHROPIC_API_KEY" not in env
+    assert "ANTHROPIC_BASE_URL" not in env
+    assert env.get("LP_KEEP_ME") == "keepme"  # non-provider vars are preserved
