@@ -2,7 +2,6 @@
 """Extract: extract claims from new transcripts."""
 from __future__ import annotations
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -14,12 +13,7 @@ from filelock import FileLock
 
 load_dotenv()
 
-if not os.environ.get("ANTHROPIC_API_KEY"):
-    raise SystemExit(
-        "ANTHROPIC_API_KEY is not set. Add it to your .env file or environment. "
-        "Get a key at https://console.anthropic.com/"
-    )
-
+from pipeline import cli_providers
 from pipeline.config import load_config
 from pipeline.paths import resolve_path, AppPaths, startup_check
 from pipeline.scout.state import StateManager
@@ -35,6 +29,9 @@ CONFIG_DIR = Path(__file__).parent.parent / "config"
 @click.option("--limit", default=None, type=int, help="Max transcripts to process")
 def main(limit: int | None) -> None:
     config = load_config(CONFIG_DIR)
+    cli_providers.configure(config.api.cli_timeout_s, config.extraction.max_retries)
+    for provider in cli_providers.providers_for([config.extraction.model]):
+        cli_providers.ensure_cli_ready(provider, config.providers)
     extract_limit = limit or config.api.extract_limit
     paths = AppPaths(
         knowledge_store=resolve_path(config.paths.knowledge_store),
