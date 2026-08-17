@@ -90,12 +90,22 @@ class ProviderAdapter:
             )
         except subprocess.TimeoutExpired as exc:
             raise ProviderError(f"{self.name} timed out after {timeout}s") from exc
-        if proc.returncode != 0:
-            msg = (proc.stderr or proc.stdout or "").strip()
-            if _is_rate_limit(msg):
-                raise RateLimited(msg)
-            raise ProviderError(f"{self.name} exited {proc.returncode}: {msg[:500]}")
-        return self.parse(proc.stdout)
+        if proc.returncode == 0:
+            return self.parse(proc.stdout)
+        # Non-zero exit: some CLIs (e.g. claude) return a non-zero code from an
+        # unrelated environment hook even when the completion succeeded. Trust a
+        # valid, non-empty parsed payload over the exit code; only treat it as a
+        # real failure when no usable output came back.
+        try:
+            rescued = self.parse(proc.stdout)
+        except Exception:
+            rescued = None
+        if rescued:
+            return rescued
+        msg = (proc.stderr or proc.stdout or "").strip()
+        if _is_rate_limit(msg):
+            raise RateLimited(msg)
+        raise ProviderError(f"{self.name} exited {proc.returncode}: {msg[:500]}")
 
 
 def _parse_claude(stdout: str) -> str:

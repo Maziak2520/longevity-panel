@@ -161,3 +161,36 @@ def test_adapter_run_timeout(monkeypatch):
     monkeypatch.setattr(cp.subprocess, "run", _raise)
     with pytest.raises(cp.ProviderError):
         adapter.run(None, "u", None, 5)
+
+
+def _claude_envelope(result, is_error=False):
+    import json as _json
+    return _json.dumps({"type": "result", "is_error": is_error, "result": result})
+
+
+def test_adapter_run_rescues_valid_payload_on_nonzero_exit(monkeypatch):
+    # claude exits 1 due to a failing SessionEnd hook, but stdout is a valid
+    # envelope — the completion succeeded and must be returned, not raised.
+    adapter = cp.ProviderAdapter("claude", "claude", [], None, None, cp._parse_claude)
+    monkeypatch.setattr(cp.subprocess, "run",
+                        lambda *a, **k: _fake_completed(1, _claude_envelope("pong"),
+                                                        "SessionEnd hook failed: Hook cancelled"))
+    assert adapter.run(None, "u", None, 5) == "pong"
+
+
+def test_adapter_run_nonzero_exit_empty_stdout_raises(monkeypatch):
+    # Non-zero exit with no usable payload is still a real failure.
+    adapter = cp.ProviderAdapter("claude", "claude", [], None, None, cp._parse_claude)
+    monkeypatch.setattr(cp.subprocess, "run",
+                        lambda *a, **k: _fake_completed(1, "", "some auth error"))
+    with pytest.raises(cp.ProviderError):
+        adapter.run(None, "u", None, 5)
+
+
+def test_adapter_run_nonzero_exit_api_error_envelope_raises(monkeypatch):
+    # A valid envelope with is_error=True is a real API error, not a rescue.
+    adapter = cp.ProviderAdapter("claude", "claude", [], None, None, cp._parse_claude)
+    monkeypatch.setattr(cp.subprocess, "run",
+                        lambda *a, **k: _fake_completed(1, _claude_envelope("boom", is_error=True), ""))
+    with pytest.raises(cp.ProviderError):
+        adapter.run(None, "u", None, 5)
