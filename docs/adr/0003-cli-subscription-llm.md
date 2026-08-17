@@ -95,11 +95,16 @@ integration bugs surfaced only under live fire and were fixed with tests:
 
 ## Known costs / follow-ups (not blocking)
 
-- **Per-call overhead.** Each `claude -p` call carries ~22–25 k tokens of Claude
-  Code session setup (CLAUDE.md discovery, plugins, base prompt). `--bare` would
-  remove it but disables subscription auth (API-key only), so it is unusable here.
-  Inherent to headless Claude Code on a subscription; fine for the weekly cadence,
-  costly for the one-time 457-transcript backlog catch-up.
+- **Per-call overhead — largely MITIGATED (2026-08-17).** A `claude -p` call
+  loads its context once per 5-minute cache window (`cache_creation`), then reads
+  it cheaply on subsequent calls (`cache_creation=0`, `cache_read`). The bulk of
+  that context was the built-in tool schemas, so the claude adapter now passes
+  `--tools ""` (no tools — these are pure completions that never act) and
+  `--strict-mcp-config` (no MCP schemas). Measured context dropped from ~17 k to
+  **~2.4 k tokens** per call. Note `--system-prompt` was already ours (the default
+  "coding assistant" prompt was never in play); the prompt was not the overhead,
+  the tools were. `--bare` would cut the last ~2 k too but disables subscription
+  auth, so it stays unused. Remaining ~2.4 k is Claude Code's irreducible base.
 - **SessionEnd hook latency — RESOLVED (2026-08-17).** The user-global
   `~/.claude/settings.json` SessionStart/SessionEnd hooks run a C.A.S.E. `sync.sh`
   git push/pull on every call and, when the git op stalled to its cancellation

@@ -139,14 +139,24 @@ def _parse_raw(stdout: str) -> str:
 # claude runs in a neutral cwd with tools effectively unusable in headless -p mode,
 # so it behaves as a pure completion (validated live: is_error=false, no tool use,
 # permission_denials=[], clean JSON on stdout). See ADR 0003 "Validation (live)".
-# --settings disableAllHooks skips the user's global Claude Code hooks (the C.A.S.E.
-# SessionStart/SessionEnd git-sync) — unwanted and slow in these non-interactive
-# runs — while keeping subscription OAuth auth (unlike --bare, which forces API-key
-# auth). Passed as two argv elements so subprocess sends the JSON verbatim.
+# Flags that turn `claude` into a lean, pure-completion engine for these
+# non-interactive calls (all keep subscription OAuth, unlike --bare which forces
+# API-key auth):
+#   --settings disableAllHooks : skip the user's global Claude Code hooks (the
+#     C.A.S.E. SessionStart/SessionEnd git-sync) — unwanted and slow here. Passed
+#     as two argv elements so subprocess sends the JSON verbatim.
+#   --tools ""                 : load no built-in tool schemas. We only want text
+#     out, never agentic actions — this cuts the cached per-call context from ~17k
+#     to ~2.4k tokens (measured), the tool definitions being the bulk. The value
+#     must be an explicit "" (the flag is a required variadic — a bare `--tools`
+#     errors "argument missing" when it lands last, e.g. the auth probe).
+#   --strict-mcp-config        : ignore all globally-configured MCP servers, so no
+#     MCP tool schemas can leak in (cheap insurance; negligible here).
 REGISTRY: dict[str, ProviderAdapter] = {
     "claude": ProviderAdapter(
         "claude", "claude",
-        ["-p", "--output-format", "json", "--settings", '{"disableAllHooks": true}'],
+        ["-p", "--output-format", "json", "--settings", '{"disableAllHooks": true}',
+         "--strict-mcp-config", "--tools", ""],
         "--model", "--system-prompt",
         _parse_claude, cwd=_NEUTRAL_CWD,
     ),

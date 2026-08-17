@@ -218,9 +218,10 @@ def test_adapter_run_scrubs_provider_api_env(monkeypatch):
     assert env.get("LP_KEEP_ME") == "keepme"  # non-provider vars are preserved
 
 
-def test_claude_adapter_disables_hooks(monkeypatch):
+def test_claude_adapter_lean_completion_flags(monkeypatch):
     # Non-interactive pipeline calls must skip the user's global Claude Code hooks
-    # (C.A.S.E. git-sync) while keeping subscription auth — via disableAllHooks.
+    # (C.A.S.E. git-sync) and load no tools/MCP — a lean, pure-completion engine —
+    # while keeping subscription auth. All via CLI flags, not a global config edit.
     import json as _json
     captured = {}
 
@@ -233,3 +234,7 @@ def test_claude_adapter_disables_hooks(monkeypatch):
     argv = captured["argv"]
     assert "--settings" in argv
     assert _json.loads(argv[argv.index("--settings") + 1]) == {"disableAllHooks": True}
+    assert "--strict-mcp-config" in argv  # no MCP tool schemas
+    # --tools must carry an explicit "" value (required variadic; a bare --tools
+    # errors "argument missing" when it lands as the final argv element).
+    assert argv[argv.index("--tools") + 1] == ""
