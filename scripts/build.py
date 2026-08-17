@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from pipeline import cli_providers
 from pipeline.config import load_config
 from pipeline.paths import resolve_path, AppPaths, startup_check
 from pipeline.models import load_claims
@@ -36,6 +37,11 @@ CONFIG_DIR = Path(__file__).parent.parent / "config"
 @click.option("--force", is_flag=True, default=False, help="Recompile every topic, ignoring the unchanged-since-last-build cache")
 def main(no_push: bool, only_topic: str | None, force: bool) -> None:
     config = load_config(CONFIG_DIR)
+    cli_providers.configure(config.api.cli_timeout_s, config.extraction.max_retries)
+    for provider in cli_providers.providers_for(
+        [config.extraction.build_model, config.extraction.build_map_model]
+    ):
+        cli_providers.ensure_cli_ready(provider, config.providers)
     paths = AppPaths(
         knowledge_store=resolve_path(config.paths.knowledge_store),
         skill_output=resolve_path(config.paths.skill_output),
@@ -59,7 +65,7 @@ def main(no_push: bool, only_topic: str | None, force: bool) -> None:
 
     # Only recompile topics whose claims changed since the last build (unless
     # --force). Sonnet summarisation is the dominant cost, so skipping unchanged
-    # topics keeps the weekly build affordable under the LiteLLM budget.
+    # topics keeps the weekly build well within the Max subscription rate window.
     build_state = load_build_state(paths.build_state_file)
 
     for topic, claims in grouped.items():

@@ -60,14 +60,19 @@ class BuildConfig(BaseModel):
     min_claims_to_publish: int
 
 
+class ProviderConfig(BaseModel):
+    enabled: bool = False
+
+
 class ApiConfig(BaseModel):
-    monthly_spend_limit_usd: float
+    cli_timeout_s: int = 180
     extract_limit: int | None
 
 
 class AppConfig(BaseModel):
     experts: list[Expert]
     topics: dict[str, list[str]]
+    providers: dict[str, ProviderConfig]
     paths: PathsConfig
     extraction: ExtractionConfig
     transcription: TranscriptionConfig
@@ -94,9 +99,15 @@ def load_config(config_dir: Path) -> AppConfig:
     experts = [Expert(**e) for e in experts_raw["experts"]]
     topics = topics_raw["topics"]
 
+    providers = {
+        name: ProviderConfig(**(spec or {}))
+        for name, spec in (settings_raw.get("providers") or {}).items()
+    }
+
     return AppConfig(
         experts=experts,
         topics=topics,
+        providers=providers,
         paths=PathsConfig(**settings_raw["paths"]),
         extraction=ExtractionConfig(**settings_raw["extraction"]),
         transcription=TranscriptionConfig(**settings_raw["transcription"]),
