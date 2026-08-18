@@ -34,5 +34,7 @@ providers:
   grok:   { enabled: false }
 
 api:
-  cli_timeout_s: 180
+  # Large topic reduces (10k+ claims) need well over 180s on Sonnet; the full-KB
+  # rebuild after the Aug-2026 backlog timed out several topics at 180s.
+  cli_timeout_s: 600
   extract_limit: null
