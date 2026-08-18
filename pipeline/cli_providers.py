@@ -66,7 +66,8 @@ def parse_model_id(model_id: str) -> tuple[str, str | None]:
 
 
 _RATE_RE = re.compile(
-    r"rate.?limit|usage limit|quota|429|too many requests|try again later|5-hour",
+    r"rate.?limit|usage limit|session limit|quota|429|too many requests|"
+    r"try again later|5-hour",
     re.IGNORECASE,
 )
 
@@ -123,7 +124,14 @@ class ProviderAdapter:
 def _parse_claude(stdout: str) -> str:
     obj = json.loads(stdout)
     if obj.get("is_error"):
-        raise ProviderError(f"claude error: {str(obj.get('result',''))[:300]}")
+        msg = str(obj.get("result", ""))
+        # Claude returns rate/session limits as an is_error envelope (often with
+        # exit 0), e.g. api_error_status 429 + "You've hit your session limit ·
+        # resets 8:50am". Classify these as RateLimited so backoff/telemetry treat
+        # them as throttling, not a generic failure.
+        if obj.get("api_error_status") == 429 or _is_rate_limit(msg):
+            raise RateLimited(msg or "claude api_error_status=429")
+        raise ProviderError(f"claude error: {msg[:300]}")
     return obj.get("result", "") or ""
 
 
