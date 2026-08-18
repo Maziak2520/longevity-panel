@@ -56,3 +56,27 @@ def test_dedup_different_subtopic_not_deduped():
     result = dedup_claims([c1, c2])
     active = [c for c in result if not c.superseded_by]
     assert len(active) == 2
+
+
+def test_dedup_collapses_reextraction_by_claim_id():
+    # Same source position extracted twice -> identical claim_id, but the model
+    # re-phrased the text (and even re-labelled the subtopic), so the text-based
+    # pass can't catch it. It must collapse by claim_id, keeping the latest
+    # generation and DROPPING the rest (not retaining them as superseded).
+    gen1 = make_claim("dup01", "peter-attia", "circadian",
+                      "Morning sunlight within 30-60 min of waking.")
+    gen2 = make_claim("dup01", "peter-attia", "light",
+                      "Viewing bright sunlight shortly after waking helps.")
+    result = dedup_claims([gen1, gen2])
+    assert len(result) == 1
+    assert result[0].claim_id == "dup01"
+    assert result[0].claim_text == gen2.claim_text  # latest generation kept
+
+
+def test_dedup_claim_id_collapse_preserves_distinct_ids():
+    # Distinct claim_ids with different text are untouched by the collapse.
+    a = make_claim("idA", "peter-attia", "sleep", "Cold showers help sleep.")
+    b = make_claim("idB", "peter-attia", "sleep", "Magnesium helps sleep.")
+    result = dedup_claims([a, b])
+    active = [c for c in result if not c.superseded_by]
+    assert len(active) == 2
