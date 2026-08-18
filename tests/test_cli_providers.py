@@ -238,3 +238,42 @@ def test_claude_adapter_lean_completion_flags(monkeypatch):
     # --tools must carry an explicit "" value (required variadic; a bare --tools
     # errors "argument missing" when it lands as the final argv element).
     assert argv[argv.index("--tools") + 1] == ""
+
+
+def _claude_error_envelope(result, api_error_status=None):
+    import json as _json
+    d = {"type": "result", "is_error": True, "result": result}
+    if api_error_status is not None:
+        d["api_error_status"] = api_error_status
+    return _json.dumps(d)
+
+
+def test_parse_claude_429_is_rate_limited():
+    env = _claude_error_envelope("You've hit your session limit · resets 8:50am",
+                                 api_error_status=429)
+    with pytest.raises(cp.RateLimited):
+        cp._parse_claude(env)
+
+
+def test_parse_claude_session_limit_text_is_rate_limited():
+    # No api_error_status field — classify by the message text alone.
+    env = _claude_error_envelope("You've hit your session limit · resets 8:50am")
+    with pytest.raises(cp.RateLimited):
+        cp._parse_claude(env)
+
+
+def test_parse_claude_generic_error_stays_provider_error():
+    env = _claude_error_envelope("API Error: socket connection closed unexpectedly")
+    with pytest.raises(cp.ProviderError) as ei:
+        cp._parse_claude(env)
+    assert not isinstance(ei.value, cp.RateLimited)  # generic error, not throttling
+
+
+def test_adapter_run_session_limit_returncode0_raises_rate_limited(monkeypatch):
+    # Session limit arrives as an is_error envelope with exit 0 — must surface as
+    # RateLimited so _run_with_backoff treats it as throttling, not a hard failure.
+    env = _claude_error_envelope("You've hit your session limit", api_error_status=429)
+    adapter = cp.ProviderAdapter("claude", "claude", [], None, None, cp._parse_claude)
+    monkeypatch.setattr(cp.subprocess, "run", lambda *a, **k: _fake_completed(0, env))
+    with pytest.raises(cp.RateLimited):
+        adapter.run(None, "u", None, 5)
